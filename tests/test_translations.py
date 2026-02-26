@@ -1,36 +1,28 @@
+import pytest
+from pathlib import Path
 from pysmt.shortcuts import is_sat, is_unsat
 from pysmt.smtlib.parser import get_formula
-from io import StringIO
 
 SOLVER_NAME = "cvc5"
+FORMULAS_DIR = Path(__file__).parent.parent / "formulas"
 
-def test_sat():
-    # x in Nat, x > 0
-    smtlib_content = """
-    (declare-const x Nat)
-    (assert (> x 0))
-    """
-    formula = get_formula(StringIO(smtlib_content))
-    assert is_sat(formula, solver_name=SOLVER_NAME)
+def _collect(expected_sat: bool):
+    subdir = FORMULAS_DIR / ("sat" if expected_sat else "unsat")
+    files = sorted(subdir.glob("*.smt2")) if subdir.is_dir() else []
+    return pytest.mark.parametrize(
+        "formula_path",
+        files,
+        ids=[f.stem for f in files],
+    )
 
-def test_sat_2():
-    # x + y >= x for x, y in Nat
-    # we test validity by checking unsat of the negation
-    smtlib_content = """
-    (declare-const x Nat)
-    (declare-const y Nat)
+@_collect(expected_sat=True)
+def test_sat(formula_path):
+    formula = get_formula(formula_path.open())
+    assert is_sat(formula, solver_name=SOLVER_NAME), \
+        f"{formula_path.name} expected SAT but got UNSAT"
 
-    ; negation is x + y < x
-    (assert (< (+ x y) x))
-    """
-    formula = get_formula(StringIO(smtlib_content))
-    assert is_unsat(formula, solver_name=SOLVER_NAME)
-
-def test_unsat():
-    # x in Nat, x < 0
-    smtlib_content = """
-    (declare-const x Nat)
-    (assert (< x 0))
-    """
-    formula = get_formula(StringIO(smtlib_content))
-    assert is_unsat(formula, solver_name=SOLVER_NAME)
+@_collect(expected_sat=False)
+def test_unsat(formula_path):
+    formula = get_formula(formula_path.open())
+    assert is_unsat(formula, solver_name=SOLVER_NAME), \
+        f"{formula_path.name} expected UNSAT but got SAT"
