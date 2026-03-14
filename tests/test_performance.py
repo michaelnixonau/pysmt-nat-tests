@@ -24,7 +24,7 @@ files = glob(f"{INPUT_DIR}/**/*.smt2", recursive=True)
 """
 Takes in a file and returns the lifted formula.
 """
-def preprocess(file):
+def preprocess(file, env):
     reset_env()
     formula = read_smtlib(file)
     lifted_formula = NatFuncGlobalDefnLiftDagWalker(env=env).walk(formula)
@@ -40,7 +40,7 @@ with open(OUTPUT_FILE, "x") as test_results:
         # 1. PREPROCESSING
         start_preproc = time()
         try:
-            lifted_formula = preprocess(f)
+            lifted_formula = preprocess(f, env)
         except Exception:
             logging.exception("Preprocessing failed for file: %s", f)
             test_results.write(f"{f},error,NA,NA,NA\n")
