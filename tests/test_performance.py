@@ -4,7 +4,7 @@ from pysmt.shortcuts import reset_env, read_smtlib, Solver
 from pysmt.walkers.nat_func_global_defn_lift_dag import NatFuncGlobalDefnLiftDagWalker
 from pysmt.exceptions import SolverReturnedUnknownResultError
 from time import time
-from pathlib import Path
+from tqdm import tqdm
 
 # Parameters
 TIMEOUT = 30 # Timeout for cvc5 in seconds
@@ -34,7 +34,7 @@ def preprocess(file, env):
 with open(OUTPUT_FILE, "x") as test_results:
     test_results.write("file,preprocess_time,solve_time,total_time,solve_result\n")
 
-    for f in files:
+    for f in tqdm(files, desc="Processing SMT files", unit="file"):
         env = reset_env()
 
         # 1. PREPROCESSING
