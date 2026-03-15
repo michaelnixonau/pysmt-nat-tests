@@ -1,3 +1,4 @@
+import gc
 import pytest
 from pathlib import Path
 from pysmt.environment import Environment
@@ -19,21 +20,26 @@ def _collect(expected_sat: bool):
     )
 
 def _translate_and_solve(formula_path: Path) -> bool:
-    env = Environment()
-    with formula_path.open() as stream:
-        formula = get_formula(stream, environment=env)
+    with Environment() as env:
+        with formula_path.open() as stream:
+            formula = get_formula(stream, environment=env)
 
-    translated = NatFuncGlobalDefnLiftDagWalker(env=env).walk(formula)
+        walker = NatFuncGlobalDefnLiftDagWalker(env=env)
+        translated = walker.walk(formula)
 
-    logic = get_logic(translated, env)
-    with env.factory.Solver(
-        name=SOLVER_NAME,
-        logic=logic,
-        generate_models=False,
-        incremental=False,
-    ) as solver:
-        solver.add_assertion(translated)
-        return solver.solve()
+        logic = get_logic(translated, env)
+        with env.factory.Solver(
+            name=SOLVER_NAME,
+            logic=logic,
+            generate_models=False,
+            incremental=False,
+        ) as solver:
+            solver.add_assertion(translated)
+            result = solver.solve()
+
+        gc.collect()  # Manual garbage collection to prevent segfaults
+
+        return result
 
 @_collect(expected_sat=True)
 def test_sat(formula_path):
