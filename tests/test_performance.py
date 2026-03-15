@@ -57,6 +57,14 @@ def classify_solver_error(exc):
     return "solver_error"
 
 
+def classify_unknown_result(exc):
+    message = str(exc).lower()
+    timeout_markers = ("timeout", "time limit", "tlimit", "resource limit")
+    if any(marker in message for marker in timeout_markers):
+        return "timeout"
+    return "unknown"
+
+
 def solve_file(file_path, timeout_seconds, conn):
     try:
         start_preproc = time()
@@ -81,6 +89,7 @@ def solve_file(file_path, timeout_seconds, conn):
         logic = logic.get_quantified_version() if not logic.is_quantified() else logic
         
         start_solve = time()
+        unknown_detail = None
         try:
             with CVC5Solver(
                 environment=env,
@@ -89,8 +98,9 @@ def solve_file(file_path, timeout_seconds, conn):
             ) as solver:
                 solver.add_assertion(lifted_formula)
                 solve_result = "sat" if solver.solve() else "unsat"
-        except SolverReturnedUnknownResultError:
-            solve_result = "timeout_or_unknown"
+        except SolverReturnedUnknownResultError as exc:
+            solve_result = classify_unknown_result(exc)
+            unknown_detail = repr(exc)
         except Exception as exc:
             solve_result = classify_solver_error(exc)
             conn.send({
@@ -101,11 +111,14 @@ def solve_file(file_path, timeout_seconds, conn):
             })
             return
 
-        conn.send({
+        result = {
             "solve_result": solve_result, 
             "preprocess_time": preprocess_time,
             "solve_time": time() - start_solve
-        })
+        }
+        if unknown_detail is not None:
+            result["error"] = unknown_detail
+        conn.send(result)
     except Exception as exc:
         conn.send({
             "solve_result": "solver_process_error", 
@@ -130,7 +143,7 @@ def run_solver_with_timeout(file_path):
         process.join()
         parent_conn.close()
         return {
-            "solve_result": "timeout_or_unknown", 
+            "solve_result": "wallclock_timeout",
             "preprocess_time": "NA", 
             "solve_time": float(TIMEOUT)
         }
@@ -185,8 +198,16 @@ def main():
                     writer.writerow([relative_file, "error", "NA", "NA", solve_result])
                     continue
 
-                if solve_result == "timeout_or_unknown":
-                    logging.warning("Solver timed out for %s", relative_file)
+                if solve_result == "timeout":
+                    logging.warning("Solver timed out internally for %s", relative_file)
+                elif solve_result == "wallclock_timeout":
+                    logging.warning("Wallclock timeout reached for %s", relative_file)
+                elif solve_result == "unknown":
+                    logging.warning(
+                        "Solver returned unknown for %s: %s",
+                        relative_file,
+                        result.get("error", "no details"),
+                    )
                 elif solve_result not in {"sat", "unsat"}:
                     logging.error(
                         "Solver execution failed for %s: %s",
