@@ -1,0 +1,6 @@
+(declare-const x Nat)
+(declare-const y Nat)
+(assert (> x 1))
+(assert (> y 1))
+(assert (= (* x y) 17))
+(check-sat)
