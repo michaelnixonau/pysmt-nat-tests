@@ -1,2 +1,3 @@
 pytest
 cvc5
+tqdm
