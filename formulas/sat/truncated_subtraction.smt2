@@ -1,0 +1,6 @@
+(declare-const a Nat)
+(declare-const b Nat)
+(assert (= a 1))
+(assert (= b 2))
+(assert (= (- a b) 0)) 
+(check-sat)
